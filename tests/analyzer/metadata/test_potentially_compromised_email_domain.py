@@ -5,7 +5,6 @@ from copy import deepcopy
 from datetime import datetime
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
 import guarddog.analyzer.metadata.utils
 from guarddog.analyzer.metadata.npm import NPMPotentiallyCompromisedEmailDomainDetector
@@ -43,11 +42,11 @@ class TestCompromisedEmail:
         "package_info, detector",
         [(PYPI_PACKAGE_INFO, pypi_detector), (NPM_PACKAGE_INFO, npm_detector)],
     )
-    def test_compromised(self, package_info, detector):
-        def mock_whois(domain):
+    def test_compromised(self, monkeypatch, package_info, detector):
+        def mock_whois(domain, **kwargs):
             return MockWhoIs(datetime.today())
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
         compromised, _ = detector.detect(package_info)
         assert compromised
 
@@ -55,21 +54,21 @@ class TestCompromisedEmail:
         "package_info, detector",
         [(PYPI_PACKAGE_INFO, pypi_detector), (NPM_PACKAGE_INFO, npm_detector)],
     )
-    def test_safe(self, package_info, detector):
-        def mock_whois(domain):
+    def test_safe(self, monkeypatch, package_info, detector):
+        def mock_whois(domain, **kwargs):
             return MockWhoIs(datetime(1990, 1, 31))
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
         compromised, _ = detector.detect(package_info)
         assert not compromised
 
-    def test_email_domain_doesnt_exist(self):
-        def mock_whois(domain):
+    def test_email_domain_doesnt_exist(self, monkeypatch):
+        def mock_whois(domain, **kwargs):
             from whois.exceptions import PywhoisError
 
             raise PywhoisError('No match for "nope.com".')
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
         compromised, _ = pypi_detector.detect(PYPI_PACKAGE_INFO)
         assert not compromised
 
@@ -82,18 +81,21 @@ class TestCompromisedEmail:
         "package_info, detector",
         [(empty_author_pypi, pypi_detector), (empty_author_npm, npm_detector)],
     )
-    def test_email_domain_none(self, package_info, detector):
-        def mock_whois(domain):
+    def test_email_domain_none(self, monkeypatch, package_info, detector):
+        def mock_whois(domain, **kwargs):
             return MockWhoIs(datetime(1990, 1, 31))
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
         compromised, _ = detector.detect(package_info)
         assert not compromised
 
-    def test_single_package_version(self):
+    def test_single_package_version(self, monkeypatch):
         """
         Regression test for https://github.com/DataDog/guarddog/issues/190
         """
+        monkeypatch.setattr(
+            "whois.whois", lambda domain, **kwargs: MockWhoIs(datetime(1990, 1, 31))
+        )
         current_info = deepcopy(PYPI_PACKAGE_INFO)
 
         current_info["releases"] = {
@@ -110,7 +112,7 @@ class TestCompromisedEmail:
         except Exception as e:
             pytest.fail(f"Unexpected exception thrown: {e}")
 
-    def test_legacy_version_string(self):
+    def test_legacy_version_string(self, monkeypatch):
         """
         Regression test for https://github.com/DataDog/guarddog/issues/389
 
@@ -118,10 +120,10 @@ class TestCompromisedEmail:
         (e.g. pytz's "2004d"), which used to crash the whole rule.
         """
 
-        def mock_whois(domain):
+        def mock_whois(domain, **kwargs):
             return MockWhoIs(datetime(1990, 1, 31))
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
 
         current_info = deepcopy(PYPI_PACKAGE_INFO)
         current_info["releases"] = {
