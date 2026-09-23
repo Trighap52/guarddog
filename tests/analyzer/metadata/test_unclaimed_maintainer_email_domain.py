@@ -3,7 +3,6 @@ import json
 import os
 import pathlib
 
-from _pytest.monkeypatch import MonkeyPatch
 import pytest
 
 from guarddog.analyzer.metadata.pypi import PypiUnclaimedMaintainerEmailDomainDetector
@@ -30,22 +29,22 @@ def clear_caches():
 
 
 class TestUnclaimedMaintainerEmailDomain:
-    def test_email_domain_doesnt_exist(self):
-        def mock_whois(domain):
+    def test_email_domain_doesnt_exist(self, monkeypatch):
+        def mock_whois(domain, **kwargs):
             from whois.exceptions import PywhoisError
 
             raise PywhoisError('No match for "nope.com".')
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
         # should work exactly the same for NPM
         compromised, _ = pypi_detector.detect(PYPI_PACKAGE_INFO)
         assert compromised
 
-    def test_email_domain_does_exist(self):
-        def mock_whois(domain):
+    def test_email_domain_does_exist(self, monkeypatch):
+        def mock_whois(domain, **kwargs):
             return MockWhoIs(datetime(1990, 1, 31))
 
-        MonkeyPatch().setattr("whois.whois", mock_whois)
+        monkeypatch.setattr("whois.whois", mock_whois)
         # should work exactly the same for NPM
         compromised, _ = pypi_detector.detect(PYPI_PACKAGE_INFO)
         assert not compromised
