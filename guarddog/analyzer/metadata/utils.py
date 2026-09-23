@@ -3,8 +3,11 @@ from functools import cache
 from typing import Optional
 
 import hashlib
+import logging
 import whois  # type: ignore
 from whois.exceptions import PywhoisError  # type: ignore[import-untyped]
+
+log = logging.getLogger("guarddog")
 
 NPM_MAINTAINER_EMAIL_WARNING = (
     "note that NPM's API may not provide accurate information regarding the maintainer's email, "
@@ -27,7 +30,10 @@ def get_domain_creation_date(domain) -> tuple[Optional[datetime], bool]:
     """
 
     try:
-        domain_information = whois.whois(domain)
+        # WHOIS handles socket failures internally; only show its diagnostics in debug mode.
+        domain_information = whois.whois(
+            domain, quiet=not log.isEnabledFor(logging.DEBUG)
+        )
     except PywhoisError as e:
         # The domain doesn't exist at all, if that's the case we consider it vulnerable
         # since someone could register it
